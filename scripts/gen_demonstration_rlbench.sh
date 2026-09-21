@@ -14,6 +14,11 @@ PERACT_RAW="${PERACT_RAW:-/tmp/peract/raw/}"
 ZARR_OUT="${ZARR_OUT:-/tmp/rlbench_zarr/}"
 TRAIN_EPISODES="${TRAIN_EPISODES:-100}"
 TEST_EPISODES="${TEST_EPISODES:-25}"
+# !! opengl3 (the collector's default) segfaults headless: its offscreen
+# renderer plugin dereferences a null QOpenGLContext when a vision sensor is
+# rendered. The zarr only stores object poses (image/point-cloud writes are
+# commented out upstream), so the legacy renderer loses nothing here.
+RENDERER="${RENDERER:-opengl}"
 
 # single-object tasks / multi-stage tasks; TASKS= filters both lists
 SINGLE_TASKS="meat_off_grill place_wine_at_rack_location insert_onto_square_peg \
@@ -31,7 +36,8 @@ run_split() {  # <script> <task> <split> <episodes>
     python "$1" \
         --peract_demo_dir="$PERACT_RAW" \
         --save_path="$ZARR_OUT" \
-        --tasks="$2" --variations=-1 --processes=1 --split="$3" --episodes_per_task="$4"
+        --tasks="$2" --variations=-1 --processes=1 --split="$3" --episodes_per_task="$4" \
+        --renderer="$RENDERER"
 }
 
 # peract setting

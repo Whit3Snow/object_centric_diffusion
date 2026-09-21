@@ -32,8 +32,13 @@ export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
 export COPPELIASIM_ROOT="${COPPELIASIM_ROOT:-/home/nas_main/hyojinjang/CoppeliaSim}"
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$COPPELIASIM_ROOT"
 export QT_QPA_PLATFORM_PLUGIN_PATH="$COPPELIASIM_ROOT"
-# headless rendering (no X server on the cluster)
-export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-offscreen}"
+# !! Do NOT use QT_QPA_PLATFORM=offscreen here. The offscreen plugin creates no
+# OpenGL context, so CoppeliaSim segfaults inside the opengl3 renderer as soon
+# as a vision sensor is rendered (QOpenGLFramebufferObject -> shareGroup()).
+# Run under Xvfb with the xcb platform instead, and force Mesa's software GL
+# (the cluster has no GLX-capable X server on the NVIDIA driver).
+export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
+export LIBGL_ALWAYS_SOFTWARE="${LIBGL_ALWAYS_SOFTWARE:-1}"
 
 # ---- CUDA (conda "Path B": self-contained inside the env) ----
 export CUDA_HOME="$CONDA_PREFIX"

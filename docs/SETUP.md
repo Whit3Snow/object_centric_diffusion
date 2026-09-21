@@ -71,10 +71,37 @@ sbatch scripts/sbatch_train_icl.sh rlbench_icl_multi other_episode
   `Xvfb`:
 
   ```bash
-  Xvfb :99 -screen 0 1024x768x24 & export DISPLAY=:99
+  Xvfb :99 -screen 0 1024x768x24 +extension GLX +render -noreset & export DISPLAY=:99
   ```
 
-  Verified: `PyRep().launch(task_design.ttt, headless=True)` starts and steps.
+  GL itself is fine on this node - a GLX context created against that Xvfb
+  reports `NVIDIA B200 / OpenGL 4.6 / direct rendering`.
+* **`QT_QPA_PLATFORM=offscreen` breaks CoppeliaSim rendering.** The offscreen
+  platform plugin creates no GL context, so the first vision-sensor render
+  segfaults (`QOpenGLFramebufferObject` -> `QOpenGLContext::shareGroup` on a
+  null context). Use `xcb` under Xvfb; `scripts/spot_env.sh` does.
+  A bare `PyRep().launch(); pr.step()` smoke test does *not* catch this - it
+  never renders a vision sensor.
+* **The `opengl3` renderer segfaults headless anyway.** Even with a working GL
+  context, `libsimExtOpenGL3Renderer.so` crashes in the same place. Pass
+  `--renderer=opengl` (the gen script defaults to it via `RENDERER`). Nothing
+  is lost: the zarr stores only object poses - the `img` / `point_cloud`
+  dataset writes are commented out upstream in `utils/collect_utils.py`.
+* **SPOT needs a patched RLBench task** (not mentioned in the README).
+  `env_rlbench_peract/utils/rlbench_utils.py::_get_misc` reads
+  `self.task._chosen_pillar_name`, which stock `insert_onto_square_peg.py`
+  never sets - it keeps `chosen_pillar` as a local. Add to `init_episode`:
+
+  ```python
+  chosen_pillar = np.random.choice(spokes)
+  self._chosen_pillar_name = chosen_pillar.get_name()   # <- add
+  ```
+
+  This is correct rather than a guess: `reset_to_demo()` runs
+  `demo.restore_state()` (which restores the numpy RNG state) *before*
+  `init_episode()`, so `np.random.choice` re-picks the demo's own pillar.
+  Of the task attributes SPOT expects (`_chosen_pillar_name`, `_cups`,
+  `_spokes`), only this one is missing from stock RLBench.
 
 ## Verified
 
@@ -82,6 +109,8 @@ sbatch scripts/sbatch_train_icl.sh rlbench_icl_multi other_episode
 * full SPOT + ICL import chain (pytorch3d, nvdiffrast, warp, open3d, mycpp)
 * FoundationPose `mycpp` extension built and loaded
 * `pyrep` / `rlbench` / `yarr` import; CoppeliaSim launches headless under Xvfb
+* zarr generation end to end: `insert_onto_square_peg` test split, 2 episodes
+  -> `state (22, 7)` with unit quaternions, loads back through `ReplayBuffer`
 * the ICL test suite (dataset prompt logic, `compute_loss` with gradient into
   the prompt encoder, `predict_action` in both training and rollout form, EMA
   deepcopy) passes
