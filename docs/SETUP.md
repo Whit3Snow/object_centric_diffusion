@@ -87,10 +87,36 @@ sbatch scripts/sbatch_train_icl.sh rlbench_icl_multi other_episode
   deepcopy) passes
 * 5 training steps + `predict_action` of `PromptSimpleDP3` on a B200
 
-## Still needed before training
+## Datasets
 
-The **PerAct pre-generated dataset** (train 100 / val 25 / test 25) and the
-**RLBench object meshes** are manual Google Drive downloads. Once they are on
-NAS, point `--peract_demo_dir` / `--save_path` in
-`scripts/gen_demonstration_rlbench.sh` at them, generate the zarr, and set
-`dataset.root_dir` in the task configs.
+Both downloads are scripted - no manual Google Drive clicking needed.
+
+```bash
+# PerAct demonstrations: 13 SPOT tasks x {train,test} = 26 archives, ~77 GB
+python tools/download_peract.py --out <DATA>/peract/raw --jobs 3 --extract
+
+# RLBench object meshes (~23 MB), needed for FoundationPose at eval time
+gdown --folder -O <DATA>/mesh "https://drive.google.com/drive/folders/1bupiLa2akr2sytb7jcULnU_6ed4OOgkw"
+```
+
+Then point `--peract_demo_dir` / `--save_path` in
+`scripts/gen_demonstration_rlbench.sh` at `<DATA>/peract/raw` and the zarr
+output dir, and set `dataset.root_dir` in the task configs plus
+`pose_estimation.mesh_dir` to `<DATA>/mesh`.
+
+### Google Drive traps
+
+* The PerAct folder is an **old-style Drive folder with a `resourceKey`**.
+  `gdown --folder` does not send it and just returns `401`. `download_peract.py`
+  lists the folder through the Drive v3 API instead (public web API key scraped
+  from the folder page + `X-Goog-Drive-Resource-Keys`).
+* **Do not run several gdown downloads in parallel.** gdown goes through the
+  interactive "can't scan for viruses" page, whose per-IP budget is small: four
+  parallel multi-GB downloads got the whole IP throttled, after which even a
+  file that had just downloaded fine failed with
+  `Cannot retrieve the public link of the file`. `download_peract.py` downloads
+  through `files.get?alt=media` with HTTP Range instead - resumable and far
+  less trigger-happy. Measured ~4.5 MB/s per stream, so ~77 GB takes a few
+  hours at `--jobs 3`.
+* Only one of the API keys on the folder page allows both `files.list` and
+  `alt=media`; the script probes them and picks the one that works.
