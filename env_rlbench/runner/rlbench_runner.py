@@ -60,8 +60,25 @@ class RLBenchRunner(BaseRunner):
                  use_fp,
                  fp_cam_name,
                  pose_estimation_wrapper,
+                 prompt_path=None,
+                 prompt_length=None,
         ):
         super().__init__(output_dir)
+
+        # ------------------------
+        # |   Trajectory prompt  |
+        # ------------------------
+        # object trajectory used as an in-context prompt at evaluation time.
+        # A (K, 7) .npy file (see tools/export_prompt_traj.py); None keeps the
+        # original prompt-free SPOT behaviour.
+        self.demo_traj = None
+        if prompt_path is not None:
+            self.demo_traj = np.load(prompt_path).astype(np.float32)
+            if prompt_length is not None:
+                assert len(self.demo_traj) == prompt_length, (
+                    f"prompt {prompt_path} has length {len(self.demo_traj)}, "
+                    f"expected {prompt_length}")
+            cprint(f"[RLbench Runner] demo_traj: {prompt_path} {self.demo_traj.shape}", "yellow")
 
         # ------------------------
         # |    Pose Estimation   |
@@ -179,7 +196,8 @@ class RLBenchRunner(BaseRunner):
         if policy is None: 
             subgoal_policy = RLBenchSubGoalPolicy(self.env)
         else:
-            subgoal_policy = RLBenchDP3Policy(self.env, policy, self.use_fp, self.enable_stage)
+            subgoal_policy = RLBenchDP3Policy(self.env, policy, self.use_fp, self.enable_stage,
+                                              demo_traj=self.demo_traj)
             # subgoal_policy = RLBenchSubGoalPolicy(self.env)
         self.get_action = subgoal_policy.get_action
     

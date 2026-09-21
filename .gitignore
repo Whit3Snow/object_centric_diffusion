@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# training / eval artifacts
+outputs/
+wandb/
+data/
+prompts/
+*.ckpt
+*.zarr/

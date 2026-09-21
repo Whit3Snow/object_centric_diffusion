@@ -28,8 +28,11 @@ from utils.pose_utils import calculate_action, calculate_goal_pose, get_rel_pose
 
 
 class RLBenchDP3Policy(RLBenchSubGoalPolicy):
-    def __init__(self, env, sub_goal_policy: BasePolicy, use_fp, enable_stage):
+    def __init__(self, env, sub_goal_policy: BasePolicy, use_fp, enable_stage, demo_traj=None):
         self.env = env
+
+        # object trajectory prompt for in-context evaluation (K, 7) or None
+        self.demo_traj = demo_traj
 
         # initial stage
         self.stage = "reach" 
@@ -176,7 +179,11 @@ class RLBenchDP3Policy(RLBenchSubGoalPolicy):
                 obs_dict_input['lang_token_embs'] = obs_dict['lang_token_embs'].unsqueeze(0).float()
             if stage_embs is not None:
                 obs_dict_input['stage_embs'] = obs_dict['stage_embs'].unsqueeze(0).float()
-            action_dict = self.sub_goal_policy.predict_action(obs_dict_input)
+            if self.demo_traj is not None:
+                action_dict = self.sub_goal_policy.predict_action(
+                    obs_dict_input, demo_traj=self.demo_traj)
+            else:
+                action_dict = self.sub_goal_policy.predict_action(obs_dict_input)
 
         np_action_dict = dict_apply(action_dict,
                                     lambda x: x.detach().to('cpu').numpy())

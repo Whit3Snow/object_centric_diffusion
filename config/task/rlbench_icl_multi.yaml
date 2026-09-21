@@ -1,0 +1,54 @@
+# Multi-task ICL setting.
+#
+# The key ablation: language and stage embeddings are OFF, so the ONLY signal
+# that tells the policy which task it is doing is the demo object trajectory.
+name: rlbench
+task_name: multitask_icl
+
+shape_meta: &shape_meta
+  # acceptable types: rgb, low_dim
+  obs:
+    point_cloud:
+      shape: [1024, 3]
+      type: point_cloud
+    agent_pos:
+      shape: [7]
+      type: low_dimx
+    demo_traj:
+      shape: ["${prompt_length}", 7]
+      type: low_dimx
+  action:
+    shape: [8]
+
+env_runner: null
+
+dataset:
+  _target_: diffusion_policy_3d.dataset.rlbench_icl_dataset_list.RLBenchICLDatasetList
+  root_dir: "/tmp/rlbench_zarr/train"  # overrides all single-task configs
+  task_config_dir: "config/task/rlbench"
+
+  prompt_length: ${prompt_length}
+  # other_episode (ICL) | self | shuffled | wrong_task | zero
+  prompt_mode: ${prompt_mode}
+
+  task_list:
+    - meat_off_grill
+    - put_money_in_safe
+    - place_wine_at_rack_location
+    - reach_and_drag
+    - stack_blocks
+    - close_jar
+    - light_bulb_in
+    - put_groceries_in_cupboard
+    - place_shape_in_shape_sorter
+    - insert_onto_square_peg
+    - stack_cups
+    - place_cups
+    - turn_tap
+
+  # applied on top of every config/task/rlbench/<task>.yaml dataset config
+  dataset_overrides:
+    has_lang_emb: false     # !! task identity must come from the prompt only
+    has_stage_emb: false
+    random_aug: false       # MVP: prompt and execution episode are augmented
+    symmetric_axis: null    #      independently -> keep augmentation off first
