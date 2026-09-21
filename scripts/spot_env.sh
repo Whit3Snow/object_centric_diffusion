@@ -15,6 +15,13 @@
 SPOT_CONDA_ENV="${SPOT_CONDA_ENV:-/home/nas_main/hyojinjang/miniconda3/envs/spot}"
 SPOT_CONDA_BASE="${SPOT_CONDA_BASE:-/home/nas_main/hyojinjang/miniconda3}"
 
+# conda's activate.d hooks (activate-gcc_linux-64.sh) reference unset variables,
+# which aborts any caller running under `set -u` (e.g. our sbatch scripts).
+# Disable nounset across activation and restore it afterwards.
+_spot_had_u=0
+case $- in *u*) _spot_had_u=1 ;; esac
+set +u
+
 if [ -f "$SPOT_CONDA_BASE/etc/profile.d/conda.sh" ]; then
     # shellcheck disable=SC1091
     source "$SPOT_CONDA_BASE/etc/profile.d/conda.sh"
@@ -22,6 +29,9 @@ if [ -f "$SPOT_CONDA_BASE/etc/profile.d/conda.sh" ]; then
 else
     echo "[spot_env] conda not found at $SPOT_CONDA_BASE" >&2
 fi
+
+[ "$_spot_had_u" = 1 ] && set -u
+unset _spot_had_u
 
 # ---- conda env's own libs (libGL.so.1 from mesalib, libxkbcommon, ...) ----
 # open3d (and therefore the whole SPOT import chain) dlopens libGL.so.1, which
