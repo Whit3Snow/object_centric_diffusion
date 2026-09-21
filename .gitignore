@@ -10,3 +10,6 @@ data/
 prompts/
 *.ckpt
 *.zarr/
+
+# build artifacts
+foundation_pose/mycpp/build/
