@@ -1,15 +1,25 @@
 #!/bin/bash
 #SBATCH --job-name=spot-genzarr
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=128G
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=96G
 #SBATCH --time=12:00:00
 #SBATCH --output=data/slurm/%x-%j.out
 #
 # Replay PerAct demonstrations in CoppeliaSim and write the SPOT zarr buffers.
-# CPU-only job (cluster caps CPU-only jobs at 32 CPU / 128 GiB).
+#
+# CPU-only, and no X server: the collector runs with --disable_cameras, so
+# CoppeliaSim never creates an OpenGL context. That is not an optimisation but
+# a necessity - worker pods have no working GLX even with a GPU attached
+# (verified: segfault in COffscreenGlContext with --gres=gpu:1, and
+# glXChooseVisual fails outright on a GPU-less pod).
 #
 #   sbatch scripts/sbatch_gen_demonstration.sh insert_onto_square_peg
 #   sbatch scripts/sbatch_gen_demonstration.sh            # all 13 tasks
+#
+# Runs on the default "extra" QOS (preemptible) on purpose: `own` is only
+# 4 GPU / 56 CPU per user and is usually taken by real training runs, so an
+# `own` generation job can sit PENDING for days. The work is idempotent, and
+# the SIGTERM trap below resubmits the job if it gets preempted.
 #
 # One task per job is usually better: they are independent, and a single job
 # for all 13 would sit on the queue far longer than it needs to.
@@ -20,26 +30,32 @@ cd "${SLURM_SUBMIT_DIR:-$(pwd)}"
 source scripts/spot_env.sh
 mkdir -p data/slurm
 
+# Nothing is rendered (--disable_cameras), so Qt must use the offscreen
+# platform: spot_env.sh defaults to xcb, which aborts without a DISPLAY.
+unset DISPLAY
+export QT_QPA_PLATFORM=offscreen
+
 export PERACT_RAW="${PERACT_RAW:-/home/nas_main/hyojinjang/data/spot/peract/raw}"
 export ZARR_OUT="${ZARR_OUT:-/home/nas_main/hyojinjang/data/spot/rlbench_zarr}"
 export TASKS="${1:-}"
 
-# CoppeliaSim needs an X display even headless; there is none on the cluster,
-# so run a private Xvfb for the lifetime of this job.
-# GLX must be on: CoppeliaSim creates a real GL context (direct rendering
-# against the NVIDIA driver works fine even on Xvfb).
-DISPLAY_NUM=$(( 90 + ${SLURM_JOB_ID:-0} % 100 ))
-Xvfb ":$DISPLAY_NUM" -screen 0 1024x768x24 +extension GLX +render -noreset >/dev/null 2>&1 &
-XVFB_PID=$!
-trap 'kill $XVFB_PID 2>/dev/null || true' EXIT
-export DISPLAY=":$DISPLAY_NUM"
-sleep 5
-# fail fast rather than crashing inside CoppeliaSim if the server did not come up
-python -c "import ctypes,sys; x=ctypes.CDLL('libX11.so.6'); x.XOpenDisplay.restype=ctypes.c_void_p; sys.exit(0 if x.XOpenDisplay(b'$DISPLAY') else 1)" \
-    || { echo "Xvfb on $DISPLAY did not start"; exit 1; }
+
+# Preempted on `extra`? Resubmit ourselves. Only on preemption - not when the
+# user scancels us (both deliver SIGTERM, so inspect the accounting state).
+_handle_preempt() {
+    state=$(sacct -j "$SLURM_JOB_ID" -X -n -P -o State 2>/dev/null | head -1)
+    if [[ "$state" == "PREEMPTED" || "$state" == *"CANCELLED"* ]]; then
+        echo "[sbatch] preempted -> resubmitting ${TASKS:-<all>}"
+        sbatch "$0" "${TASKS:-}"
+    fi
+    exit 143
+}
+trap _handle_preempt SIGTERM
 
 echo "PERACT_RAW=$PERACT_RAW"
 echo "ZARR_OUT=$ZARR_OUT"
 echo "TASKS=${TASKS:-<all>}"
 
-bash scripts/gen_demonstration_rlbench.sh
+# background + wait so the SIGTERM trap fires immediately
+bash scripts/gen_demonstration_rlbench.sh &
+wait $!

@@ -19,6 +19,13 @@ TEST_EPISODES="${TEST_EPISODES:-25}"
 # rendered. The zarr only stores object poses (image/point-cloud writes are
 # commented out upstream), so the legacy renderer loses nothing here.
 RENDERER="${RENDERER:-opengl}"
+# Render nothing at all. Worker pods have no working GLX (not even with a GPU
+# attached), and the zarr stores only object poses, so the cameras are pure
+# cost. Run-to-run noise of the replay itself (~4e-3 on state) is the same
+# order as the camera-on/off difference, i.e. this changes nothing measurable.
+DISABLE_CAMERAS="${DISABLE_CAMERAS:-1}"
+CAM_FLAG=""
+[ "$DISABLE_CAMERAS" = "1" ] && CAM_FLAG="--disable_cameras"
 
 # single-object tasks / multi-stage tasks; TASKS= filters both lists
 SINGLE_TASKS="meat_off_grill place_wine_at_rack_location insert_onto_square_peg \
@@ -33,11 +40,17 @@ else
 fi
 
 run_split() {  # <script> <task> <split> <episodes>
+    # idempotent: a split whose zarr already exists is left alone, so a
+    # preempted job can simply be resubmitted and picks up where it stopped
+    if [ -d "$ZARR_OUT/$3/$2/all_variations/zarr" ]; then
+        echo "  [skip] $3/$2 already generated"
+        return 0
+    fi
     python "$1" \
         --peract_demo_dir="$PERACT_RAW" \
         --save_path="$ZARR_OUT" \
         --tasks="$2" --variations=-1 --processes=1 --split="$3" --episodes_per_task="$4" \
-        --renderer="$RENDERER"
+        --renderer="$RENDERER" $CAM_FLAG
 }
 
 # peract setting

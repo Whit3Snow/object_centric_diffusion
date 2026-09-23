@@ -45,10 +45,13 @@ export QT_QPA_PLATFORM_PLUGIN_PATH="$COPPELIASIM_ROOT"
 # !! Do NOT use QT_QPA_PLATFORM=offscreen here. The offscreen plugin creates no
 # OpenGL context, so CoppeliaSim segfaults inside the opengl3 renderer as soon
 # as a vision sensor is rendered (QOpenGLFramebufferObject -> shareGroup()).
-# Run under Xvfb with the xcb platform instead, and force Mesa's software GL
-# (the cluster has no GLX-capable X server on the NVIDIA driver).
+# Run under Xvfb with the xcb platform instead.
+# NOTE: GLX here comes from the NVIDIA driver (direct rendering), so anything
+# that renders needs a GPU in the pod - Mesa software GL is not an option:
+# on a GPU-less worker Xvfb offers no GLX visuals at all (glXChooseVisual
+# fails even with LIBGL_ALWAYS_SOFTWARE/llvmpipe). That is why
+# scripts/sbatch_gen_demonstration.sh requests --gres=gpu:1.
 export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
-export LIBGL_ALWAYS_SOFTWARE="${LIBGL_ALWAYS_SOFTWARE:-1}"
 
 # ---- CUDA (conda "Path B": self-contained inside the env) ----
 export CUDA_HOME="$CONDA_PREFIX"

@@ -54,6 +54,12 @@ flags.DEFINE_list('tasks', [],
                   'The tasks to collect. If empty, all tasks are collected.')
 flags.DEFINE_list('image_size', [288, 288],
                   'The size of the images tp save.')
+flags.DEFINE_boolean('disable_cameras', False,
+                     'Turn off all camera (high-dim) observations. The zarr only '
+                     'stores object poses - the img/point_cloud writes are '
+                     'commented out - so the output is unchanged, but nothing is '
+                     'rendered and CoppeliaSim needs no OpenGL context at all. '
+                     'Required on worker pods, which have no working GLX.')
 flags.DEFINE_enum('renderer',  'opengl3', ['opengl', 'opengl3'],
                   'The renderer to use. opengl does not include shadows, '
                   'but is faster.')
@@ -167,7 +173,9 @@ def save_demo(demo, example_path, variation):
         # front_depth.save(os.path.join(front_depth_path, IMAGE_FORMAT % i))
         # front_mask.save(os.path.join(front_mask_path, IMAGE_FORMAT % i))
 
-        if i >= 0:
+        # per-frame camera PNGs; SPOT itself never reads them back (training
+        # uses the zarr, eval only low_dim_obs.pkl / variation_number.pkl)
+        if i >= 0 and not FLAGS.disable_cameras:
             left_shoulder_rgb = Image.fromarray(obs.left_shoulder_rgb)
             left_shoulder_depth = utils.float_array_to_rgb_image(
                 obs.left_shoulder_depth, scale_factor=DEPTH_SCALE)
@@ -315,6 +323,8 @@ def run_all_variations(i, lock, task_index, variation_count, results, file_lock,
 
     obs_config = ObservationConfig()
     obs_config.set_all(True)
+    if FLAGS.disable_cameras:
+        obs_config.set_all_high_dim(False)
     obs_config.right_shoulder_camera.image_size = img_size
     obs_config.left_shoulder_camera.image_size = img_size
     obs_config.overhead_camera.image_size = img_size
@@ -459,7 +469,9 @@ def run_all_variations(i, lock, task_index, variation_count, results, file_lock,
                     break
                 episode_path = os.path.join(episodes_path, EPISODE_FOLDER % ex_idx)
                 with file_lock:
-                    if ex_idx == 0:
+                    # debug-only scene point cloud of the first episode;
+                    # needs camera observations and is read by nothing else
+                    if ex_idx == 0 and not FLAGS.disable_cameras:
                         frame_idx = 0
                         save_path = episode_path
                         save_scene_pc(demo, frame_idx, save_path)
