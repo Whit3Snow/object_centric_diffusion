@@ -226,8 +226,13 @@ def collect_narr_function(poses_dict_list, lang, intermediate_frame_length=1):
         arrays_sub_dict["progress"].extend(progress)
         progress_binary = np.zeros_like(progress)
         progress_binary[-1] = 1.
-        progress_binary[-2] = 0.9
-        progress_binary[-3] = 0.8
+        # guard the short-episode cases the same way the longer ones already
+        # are: a 2-keyframe episode (turn_tap has them) made [-3] raise
+        # IndexError and killed the whole task
+        if len(progress_binary) >= 2:
+            progress_binary[-2] = 0.9
+        if len(progress_binary) >= 3:
+            progress_binary[-3] = 0.8
         if len(progress_binary) >= 4:
             progress_binary[-4] = 0.7
         if len(progress_binary) >= 5:

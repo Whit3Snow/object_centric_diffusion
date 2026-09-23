@@ -23,7 +23,7 @@ shape_meta: &shape_meta
 
 env_runner:
   _target_: env_rlbench.runner.rlbench_runner.RLBenchRunner
-  root_dir: "/tmp/rlbench_zarr/test/${task.task_name}/all_variations/"
+  root_dir: "${data_root}/test/${task.task_name}/all_variations/"
   task_name: ${task.task_name}
 
   has_lang_emb: False
@@ -40,7 +40,7 @@ env_runner:
 
 dataset:
   _target_: diffusion_policy_3d.dataset.rlbench_icl_dataset.RLBenchICLDataset
-  root_dir: "/tmp/rlbench_zarr/train/${task.task_name}/all_variations/"
+  root_dir: "${data_root}/train/${task.task_name}/all_variations/"
 
   horizon: 4
   pad_before: 1

@@ -12,6 +12,11 @@ prompt_length: 16
 #   zero          : no prompt information at all                    (A-ish)
 prompt_mode: other_episode
 
+# where scripts/sbatch_gen_demonstration.sh wrote the zarr datasets
+# (override on the CLI: data_root=/path/to/rlbench_zarr)
+data_root: /home/nas_main/hyojinjang/data/spot/rlbench_zarr
+mesh_root: /home/nas_main/hyojinjang/data/spot/mesh
+
 
 task_name: ${task.name}
 shape_meta: ${task.shape_meta}
@@ -26,7 +31,7 @@ keypoint_visible_rate: 1.0
 obs_as_global_cond: True
 
 pose_estimation:
-  mesh_dir: "/tmp/mesh/${task.task_name}/"
+  mesh_dir: "${mesh_root}/${task.task_name}/"
 
 policy:
   _target_: diffusion_policy_3d.policy.prompt_simple_dp3.PromptSimpleDP3

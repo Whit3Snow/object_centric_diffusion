@@ -24,7 +24,7 @@ env_runner: null
 
 dataset:
   _target_: diffusion_policy_3d.dataset.rlbench_icl_dataset_list.RLBenchICLDatasetList
-  root_dir: "/tmp/rlbench_zarr/train"  # overrides all single-task configs
+  root_dir: "${data_root}/train"  # overrides all single-task configs
   task_config_dir: "config/task/rlbench"
 
   prompt_length: ${prompt_length}

@@ -133,6 +133,25 @@ Then point `--peract_demo_dir` / `--save_path` in
 output dir, and set `dataset.root_dir` in the task configs plus
 `pose_estimation.mesh_dir` to `<DATA>/mesh`.
 
+### Generation traps
+
+* **`--disable_cameras` is required on workers** (see the Traps section): with
+  it the whole generation is CPU-only and needs no X server. Submit one job per
+  task, `sbatch scripts/sbatch_gen_demonstration.sh <task>`; each takes roughly
+  5-70 min (~8 min for a typical task). A split whose zarr exists is skipped,
+  so a preempted job can simply be resubmitted.
+* **Short episodes crashed `turn_tap`.** `utils/collect_utils.py` guarded
+  `progress_binary[-4..-6]` by length but not `[-2]` / `[-3]`, so a 2-keyframe
+  episode raised `IndexError` and took the whole task down. Fixed.
+* **Some demos never replay.** RLBench fails to re-plan a few episodes
+  (`Bad demo... not successful`, `Could not get a path for waypoint 0`); the
+  collector retries 10x then skips. Result: `light_bulb_in` 99/100,
+  `turn_tap` 99/100, `put_groceries_in_cupboard` 90/100. The RNG state comes
+  from the recorded demo, so retrying reproduces the same failures.
+* **Multi-stage tasks produce more episodes than demos** - one demo becomes one
+  episode per stage (`stack_cups` 100 demos -> 200, `stack_blocks` -> 294,
+  `place_cups` -> 208). Expected, not an error.
+
 ### Google Drive traps
 
 * The PerAct folder is an **old-style Drive folder with a `resourceKey`**.
